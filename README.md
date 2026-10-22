@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
 fun StudyApp() {
     // --- STATE MANAGEMENT ---
     var currentScreen by remember { mutableStateOf("timer") }
-    
+
     // Timer State
     val totalTime = 25 * 60 * 1000L // 25 minutes
     var timeLeft by remember { mutableStateOf(totalTime) }
@@ -58,11 +58,17 @@ fun StudyApp() {
 
     // --- TIMER LOGIC ---
     LaunchedEffect(isRunning) {
-        while (isRunning && timeLeft > 0) {
+        if (!isRunning) return@LaunchedEffect
+
+        while (isRunning && timeLeft > 0L) {
             kotlinx.coroutines.delay(1000L)
             timeLeft -= 1000L
         }
-        if (timeLeft <= 0L) isRunning = false
+
+        if (timeLeft <= 0L) {
+            timeLeft = 0L
+            isRunning = false
+        }
     }
 
     // --- UI LAYOUT ---
@@ -91,9 +97,9 @@ fun StudyApp() {
                     totalTime = totalTime,
                     isRunning = isRunning,
                     onStartPause = { isRunning = !isRunning },
-                    onReset = { 
+                    onReset = {
                         isRunning = false
-                        timeLeft = totalTime 
+                        timeLeft = totalTime
                     }
                 )
             } else {
@@ -102,16 +108,18 @@ fun StudyApp() {
                     newTaskText = newTaskText,
                     onTextChange = { newTaskText = it },
                     onAddTask = {
-                        if (newTaskText.isNotBlank()) {
-                            tasks.add(StudyTask(id = nextTaskId, title = newTaskText.trim()))
-                            nextTaskId++
+                        val taskTitle = newTaskText.trim()
+                        if (taskTitle.isNotEmpty()) {
+                            tasks.add(StudyTask(id = nextTaskId, title = taskTitle))
+                            nextTaskId += 1
                             newTaskText = ""
                         }
                     },
                     onToggleTask = { id ->
                         val index = tasks.indexOfFirst { it.id == id }
                         if (index != -1) {
-                            tasks[index] = tasks[index].copy(isCompleted = !tasks[index].isCompleted)
+                            val task = tasks[index]
+                            tasks[index] = task.copy(isCompleted = !task.isCompleted)
                         }
                     },
                     onDeleteTask = { id ->
@@ -132,9 +140,13 @@ fun TimerScreen(
     onStartPause: () -> Unit,
     onReset: () -> Unit
 ) {
-    val progress = 1f - (timeLeft.toFloat() / totalTime.toFloat())
-    val minutes = (timeLeft / 1000) / 60
-    val seconds = (timeLeft / 1000) % 60
+    val progress = if (totalTime > 0L) {
+        ((totalTime - timeLeft).toFloat() / totalTime.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val minutes = (timeLeft / 1000L) / 60L
+    val seconds = (timeLeft / 1000L) % 60L
     val timeString = String.format("%02d:%02d", minutes, seconds)
 
     Column(
@@ -147,7 +159,7 @@ fun TimerScreen(
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
-        
+
         Spacer(modifier = Modifier.height(48.dp))
 
         // Circular Progress
@@ -182,7 +194,7 @@ fun TimerScreen(
             ) {
                 Text(if (isRunning) "Pause" else "Start", style = MaterialTheme.typography.titleMedium)
             }
-            
+
             OutlinedButton(
                 onClick = onReset,
                 modifier = Modifier.weight(1f).height(60.dp).padding(start = 8.dp)
@@ -246,10 +258,10 @@ fun TasksScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
-                            checked = task.isCompleted, 
+                            checked = task.isCompleted,
                             onCheckedChange = { onToggleTask(task.id) }
                         )
-                        
+
                         Text(
                             text = task.title,
                             modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
@@ -257,7 +269,7 @@ fun TasksScreen(
                             textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
                             color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                         )
-                        
+
                         IconButton(onClick = { onDeleteTask(task.id) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                         }
